@@ -58,30 +58,9 @@ export default class TransactionScreen extends Component {
       });
     }
   };
+// fazer handleTransaction, Issue e Return
+  
 
-  // handleTransaction = () => {
-  //   var { bookId } = this.state;
-  //   db.collection("books")
-  //     .doc(bookId)
-  //     .get()
-  //     .then(doc => {
-  //       console.log(doc.data())
-  //       var book = doc.data();
-  //       if (book.is_book_available) {
-  //         this.initiateBookIssue();
-  //       } else {
-  //         this.initiateBookReturn();
-  //       }
-  //     });
-  // };
-
-  initiateBookIssue = () => {
-    console.log("Livro entregue para o aluno!");
-  };
-
-  initiateBookReturn = () => {
-    console.log("Livro devolvido à biblioteca!");
-  };
 
   render() {
     const { bookId, studentId, domState, scanned } = this.state;
@@ -129,12 +108,7 @@ export default class TransactionScreen extends Component {
                 <Text style={styles.scanbuttonText}>Digitalizar</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={[styles.button, { marginTop: 25 }]}
-              onPress={this.handleTransaction}
-            >
-              <Text style={styles.buttonText}>Enviar</Text>
-            </TouchableOpacity>
+            {/* fazer o botão para tela de transação */}
           </View>
         </ImageBackground>
       </View>
@@ -147,22 +121,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  bgImage: {
-    flex: 1,
-    resizeMode: "cover",
-    justifyContent: "center",
-  },
-  upperContainer: {
-    flex: 0.5,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  appIcon: {
-    width: 200,
-    height: 200,
-    resizeMode: "contain",
-    marginTop: 80,
-  },
+  // fazer edição do bgImage, upperContainer, e appIcon
+  
   appName: {
     width: 180,
     resizeMode: "contain",
