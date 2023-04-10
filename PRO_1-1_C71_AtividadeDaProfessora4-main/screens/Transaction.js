@@ -7,10 +7,12 @@ import {
   Text,
   ImageBackground,
   Image,
+  Alert,
 } from "react-native";
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from "expo-barcode-scanner";
 import db from "../config";
+import firebase from "firebase";
 
 const bgImage = require("../assets/background2.png");
 const appIcon = require("../assets/appIcon.png");
@@ -25,19 +27,21 @@ export default class TransactionScreen extends Component {
       domState: "normal",
       hasCameraPermissions: null,
       scanned: false,
+      bookName: "",
+      studentName: ""
     };
   }
 
-  getCameraPermissions = async (domState) => {
+  getCameraPermissions = async domState => {
     const { status } = await Permissions.askAsync(Permissions.CAMERA);
 
     this.setState({
-      /*status === "granted" é verdadeiro se o usuário concedeu permissão
-          status === "granted" é falso se o usuário não concedeu a permissão
+      /*status === "granted" é verdadeiro quando o usuário concedeu permissão
+          status === "granted" é falso quando o usuário não concedeu a permissão
         */
       hasCameraPermissions: status === "granted",
       domState: domState,
-      scanned: false,
+      scanned: false
     });
   };
 
@@ -48,20 +52,95 @@ export default class TransactionScreen extends Component {
       this.setState({
         bookId: data,
         domState: "normal",
-        scanned: true,
+        scanned: true
       });
     } else if (domState === "studentId") {
       this.setState({
         studentId: data,
         domState: "normal",
-        scanned: true,
+        scanned: true
       });
     }
   };
-// fazer handleTransaction, Issue e Return
+
+  handleTransaction = async () => {
+    var { bookId, studentId } = this.state;
+    await this.getBookDetails(bookId);
+    await this.getStudentDetails(studentId);
+
+    db.collection("books")
+      .doc(bookId)
+      .get()
+      .then(doc => {
+        var book = doc.data();
+        if (book.is_book_available) {
+          var { bookName, studentName } = this.state;
+          this.initiateBookIssue(bookId, studentId, bookName, studentName);
+
+           Alert.alert("Livro entregue para o aluno!");
+        } else {
+          var { bookName, studentName } = this.state;
+          this.initiateBookReturn(bookId, studentId, bookName, studentName);
+
+
+          Alert.alert("Livro retornado à biblioteca!");
+        }
+      });
+  };
+
+  getBookDetails = bookId => {
+    bookId = bookId.trim();
+    db.collection("books")
+      .where("book_id", "==", bookId)
+      .get()
+      .then(snapshot => {
+        snapshot.docs.map(doc => {
+          this.setState({
+            bookName: doc.data().book_details.book_name
+          });
+        });
+      });
+  };
+
+  getStudentDetails = studentId => {
+    studentId = studentId.trim();
+    db.collection("students")
+      .where("student_id", "==", studentId)
+      .get()
+      .then(snapshot => {
+        snapshot.docs.map(doc => {
+          this.setState({
+            studentName: doc.data().student_details.student_name
+          });
+        });
+      });
+  };
+// alterar a função que autoriza a permissão do registro do livro para o aluno
+  initiateBookIssue = async (bookId, studentId, bookName, studentName) => {
+    //adicionar uma transação
+    db.collection("transactions").add({
+      // alterar aqui
+    });
+    //alterar status do livro
+    db.collection("books")
+      .doc(bookId)
+      .update({
+        // alterar aqui
+      });
+    //alterar o número de livros retirados pelo aluno
+    db.collection("students")
+      .doc(studentId)
+      .update({
+         // alterar aqui
+      });
+
+    // Atualizando o estado local
+    this.setState({
+       // alterar aqui
+    });
+  };
+
   
-
-
   render() {
     const { bookId, studentId, domState, scanned } = this.state;
     if (domState !== "normal") {
@@ -73,7 +152,6 @@ export default class TransactionScreen extends Component {
       );
     }
     return (
-      <View style={styles.container}>
         <ImageBackground source={bgImage} style={styles.bgImage}>
           <View style={styles.upperContainer}>
             <Image source={appIcon} style={styles.appIcon} />
@@ -83,9 +161,10 @@ export default class TransactionScreen extends Component {
             <View style={styles.textinputContainer}>
               <TextInput
                 style={styles.textinput}
-                placeholder={"ID do Livro"}
+                placeholder={"Id do Livro"}
                 placeholderTextColor={"#FFFFFF"}
                 value={bookId}
+                onChangeText={text => this.setState({ bookId: text })}
               />
               <TouchableOpacity
                 style={styles.scanbutton}
@@ -97,9 +176,10 @@ export default class TransactionScreen extends Component {
             <View style={[styles.textinputContainer, { marginTop: 25 }]}>
               <TextInput
                 style={styles.textinput}
-                placeholder={"ID do Aluno"}
+                placeholder={"Id do Aluno"}
                 placeholderTextColor={"#FFFFFF"}
                 value={studentId}
+                onChangeText={text => this.setState({ studentId: text })}
               />
               <TouchableOpacity
                 style={styles.scanbutton}
@@ -108,10 +188,15 @@ export default class TransactionScreen extends Component {
                 <Text style={styles.scanbuttonText}>Digitalizar</Text>
               </TouchableOpacity>
             </View>
-            {/* fazer o botão para tela de transação */}
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 25 }]}
+              onPress={this.handleTransaction}
+            >
+              <Text style={styles.buttonText}>Enviar</Text>
+            </TouchableOpacity>
           </View>
         </ImageBackground>
-      </View>
+     
     );
   }
 }
@@ -119,24 +204,39 @@ export default class TransactionScreen extends Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFFFFF"
   },
-  // fazer edição do bgImage, upperContainer, e appIcon
-  
-  appName: {
-    width: 180,
+  bgImage: {
+    flex: 1,
+    resizeMode: "cover",
+    justifyContent: "center"
+  },
+  upperContainer: {
+    flex: 0.5,
+    justifyContent: "center",
+    alignItems: "center"
+  },
+  appIcon: {
+    width: 200,
+    height: 200,
     resizeMode: "contain",
+    marginTop: 80
+  },
+  appName: {
+    width: 200,
+    height: 80,
+    resizeMode: "contain"
   },
   lowerContainer: {
     flex: 0.5,
-    alignItems: "center",
+    alignItems: "center"
   },
   textinputContainer: {
     borderWidth: 2,
     borderRadius: 10,
     flexDirection: "row",
     backgroundColor: "#9DFD24",
-    borderColor: "#FFFFFF",
+    borderColor: "#FFFFFF"
   },
   textinput: {
     width: "57%",
@@ -147,8 +247,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     fontSize: 18,
     backgroundColor: "#5653D4",
-    fontFamily: "Rajdhani_600SemiBold",
-    color: "#FFFFFF",
+    
+    color: "#FFFFFF"
   },
   scanbutton: {
     width: 100,
@@ -157,12 +257,11 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 10,
     borderBottomRightRadius: 10,
     justifyContent: "center",
-    alignItems: "center",
+    alignItems: "center"
   },
   scanbuttonText: {
-    fontSize: 20,
+    fontSize: 19,
     color: "#0A0101",
-    fontFamily: "Rajdhani_600SemiBold",
   },
   button: {
     width: "43%",
@@ -170,11 +269,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F48D20",
-    borderRadius: 15,
+    borderRadius: 15
   },
   buttonText: {
     fontSize: 24,
     color: "#FFFFFF",
-    fontFamily: "Rajdhani_600SemiBold",
-  },
+  }
 });
