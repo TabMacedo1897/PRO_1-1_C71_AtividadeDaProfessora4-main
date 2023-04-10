@@ -1,13 +1,6 @@
+// IMPORTAÇÃO DOS COMPONENTES QUE VAMOS USAR
 import React, { Component } from "react";
-import {
-  View,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Text,
-  ImageBackground,
-  Image,
-  Alert,
+import {View,StyleSheet,TextInput,TouchableOpacity,Text,ImageBackground,Image,Alert,
 } from "react-native";
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from "expo-barcode-scanner";
@@ -18,8 +11,10 @@ const bgImage = require("../assets/background2.png");
 const appIcon = require("../assets/appIcon.png");
 const appName = require("../assets/appName.png");
 
+// CRIAÇÃO DO COMPONENTE TRANSLAÇÃO
 export default class TransactionScreen extends Component {
   constructor(props) {
+    // criação do componente em seu estado de inicialização
     super(props);
     this.state = {
       bookId: "",
@@ -31,7 +26,7 @@ export default class TransactionScreen extends Component {
       studentName: ""
     };
   }
-
+//função para exibir as permissões para a câmera fazer a leitura do QrCode
   getCameraPermissions = async domState => {
     const { status } = await Permissions.askAsync(Permissions.CAMERA);
 
@@ -44,16 +39,18 @@ export default class TransactionScreen extends Component {
       scanned: false
     });
   };
-
+//Função para fazer a leitura do QrCode
   handleBarCodeScanned = async ({ type, data }) => {
     const { domState } = this.state;
 
+    // se tivermos fazendo a leitura de um livro ele lerá o IF
     if (domState === "bookId") {
       this.setState({
         bookId: data,
         domState: "normal",
         scanned: true
       });
+      // se ele estiver fazendo a leitura do estudante ele lerá o else
     } else if (domState === "studentId") {
       this.setState({
         studentId: data,
@@ -63,11 +60,14 @@ export default class TransactionScreen extends Component {
     }
   };
 
+  //Função para ler a transação da identicação inicial do aluno, e do livro
   handleTransaction = async () => {
     var { bookId, studentId } = this.state;
+    // função assíncrona, que espera ser cumprida uma promessa para que seja executada
     await this.getBookDetails(bookId);
     await this.getStudentDetails(studentId);
 
+    // alterar a coleção "books" do banco de dados que se chama fireStore
     db.collection("books")
       .doc(bookId)
       .get()
@@ -87,7 +87,7 @@ export default class TransactionScreen extends Component {
         }
       });
   };
-
+//Função para ler a transação das características do livro
   getBookDetails = bookId => {
     bookId = bookId.trim();
     db.collection("books")
@@ -101,7 +101,7 @@ export default class TransactionScreen extends Component {
         });
       });
   };
-
+//Função para ler a transação das características do aluno
   getStudentDetails = studentId => {
     studentId = studentId.trim();
     db.collection("students")
@@ -116,6 +116,8 @@ export default class TransactionScreen extends Component {
       });
   };
 // alterar a função que autoriza a permissão do registro do livro para o aluno
+// nessa função o aluno irá ter concedida a permissão para emitir um livro no id de sua carteirinha de estudante
+
   initiateBookIssue = async (bookId, studentId, bookName, studentName) => {
     //adicionar uma transação
     db.collection("transactions").add({
@@ -140,7 +142,7 @@ export default class TransactionScreen extends Component {
     });
   };
 
-  
+  //função principal que renderiza as características na tela do celular
   render() {
     const { bookId, studentId, domState, scanned } = this.state;
     if (domState !== "normal") {
@@ -153,12 +155,17 @@ export default class TransactionScreen extends Component {
     }
     return (
         <ImageBackground source={bgImage} style={styles.bgImage}>
+          {/* visualização dos icones */}
           <View style={styles.upperContainer}>
+            {/* primeiro icone */}
             <Image source={appIcon} style={styles.appIcon} />
+            {/* segundo icone */}
             <Image source={appName} style={styles.appName} />
           </View>
+
           <View style={styles.lowerContainer}>
             <View style={styles.textinputContainer}>
+              {/* caixa de texto para conter as informações do livro e um botão para enviar essas informações ao banco de dados */}
               <TextInput
                 style={styles.textinput}
                 placeholder={"Id do Livro"}
@@ -166,13 +173,19 @@ export default class TransactionScreen extends Component {
                 value={bookId}
                 onChangeText={text => this.setState({ bookId: text })}
               />
+              {/* fim da primeira caixa de texto */}
+
+              {/* botão para ler o Id do Livro */}
               <TouchableOpacity
                 style={styles.scanbutton}
                 onPress={() => this.getCameraPermissions("bookId")}
-              >
-                <Text style={styles.scanbuttonText}>Digitalizar</Text>
+              > 
+              {/* título do botão */}
+              <Text style={styles.scanbuttonText}>Digitalizar</Text>
               </TouchableOpacity>
             </View>
+
+            {/* caixa de texto para conter as informações do aluno e um botão para enviar essas informações para o banco de dados */}
             <View style={[styles.textinputContainer, { marginTop: 25 }]}>
               <TextInput
                 style={styles.textinput}
@@ -181,13 +194,18 @@ export default class TransactionScreen extends Component {
                 value={studentId}
                 onChangeText={text => this.setState({ studentId: text })}
               />
+              {/* botão para ler o id do aluno */}
               <TouchableOpacity
                 style={styles.scanbutton}
                 onPress={() => this.getCameraPermissions("studentId")}
               >
+                 {/* título do botão */}
                 <Text style={styles.scanbuttonText}>Digitalizar</Text>
               </TouchableOpacity>
             </View>
+
+
+            {/* botão para enviar as informações para o banco de dados depois do preenchimento dos dados */}
             <TouchableOpacity
               style={[styles.button, { marginTop: 25 }]}
               onPress={this.handleTransaction}
@@ -200,6 +218,7 @@ export default class TransactionScreen extends Component {
     );
   }
 }
+//constante para fazer os estilos do aplicativo
 
 const styles = StyleSheet.create({
   container: {
