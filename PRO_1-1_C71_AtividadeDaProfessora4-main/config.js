@@ -1,4 +1,4 @@
-// require("@firebase/firestore");
+ require("@firebase/firestore");
 import firebase from "firebase";
 
 const firebaseConfig = {
@@ -11,6 +11,6 @@ const firebaseConfig = {
   measurementId: "G-NF498E9XMM",
 };
 
-// firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
 
-export default batata = "";
+export default firebase.firestore();

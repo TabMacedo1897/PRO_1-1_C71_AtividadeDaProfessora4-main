@@ -1,6 +1,15 @@
-// IMPORTAÇÃO DOS COMPONENTES QUE VAMOS USAR
 import React, { Component } from "react";
-import {View,StyleSheet,TextInput,TouchableOpacity,Text,ImageBackground,Image,Alert,
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  ImageBackground,
+  Image,
+  Alert,
+  ToastAndroid,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from "expo-barcode-scanner";
@@ -11,10 +20,8 @@ const bgImage = require("../assets/background2.png");
 const appIcon = require("../assets/appIcon.png");
 const appName = require("../assets/appName.png");
 
-// CRIAÇÃO DO COMPONENTE TRANSLAÇÃO
 export default class TransactionScreen extends Component {
   constructor(props) {
-    // criação do componente em seu estado de inicialização
     super(props);
     this.state = {
       bookId: "",
@@ -23,126 +30,241 @@ export default class TransactionScreen extends Component {
       hasCameraPermissions: null,
       scanned: false,
       bookName: "",
-      studentName: ""
+      studentName: "",
     };
   }
-//função para exibir as permissões para a câmera fazer a leitura do QrCode
-  getCameraPermissions = async domState => {
+
+  getCameraPermissions = async (domState) => {
     const { status } = await Permissions.askAsync(Permissions.CAMERA);
 
     this.setState({
-      /*status === "granted" é verdadeiro quando o usuário concedeu permissão
-          status === "granted" é falso quando o usuário não concedeu a permissão
+      /*status === "granted" é verdadeiro se o usuário concedeu permissão
+          status === "granted" é falso se o usuário não concedeu permissão
         */
       hasCameraPermissions: status === "granted",
       domState: domState,
-      scanned: false
+      scanned: false,
     });
   };
-//Função para fazer a leitura do QrCode
+
   handleBarCodeScanned = async ({ type, data }) => {
     const { domState } = this.state;
 
-    // se tivermos fazendo a leitura de um livro ele lerá o IF
     if (domState === "bookId") {
       this.setState({
         bookId: data,
         domState: "normal",
-        scanned: true
+        scanned: true,
       });
-      // se ele estiver fazendo a leitura do estudante ele lerá o else
     } else if (domState === "studentId") {
       this.setState({
         studentId: data,
         domState: "normal",
-        scanned: true
+        scanned: true,
       });
     }
   };
 
-  //Função para ler a transação da identicação inicial do aluno, e do livro
   handleTransaction = async () => {
     var { bookId, studentId } = this.state;
-    // função assíncrona, que espera ser cumprida uma promessa para que seja executada
-    await this.getBookDetails(bookId);
-    await this.getStudentDetails(studentId);
+    this.getBookDetails(bookId);
+    this.getStudentDetails(studentId);
 
-    // alterar a coleção "books" do banco de dados que se chama fireStore
-    db.collection("books")
-      .doc(bookId)
-      .get()
-      .then(doc => {
-        var book = doc.data();
-        if (book.is_book_available) {
-          var { bookName, studentName } = this.state;
-          this.initiateBookIssue(bookId, studentId, bookName, studentName);
+    var transactionType = await this.checkBookAvailability(bookId);
+    console.log(transactionType);
+    if (!transactionType) {
+      this.setState({ bookId: "", studentId: "" });
+      // Apenas para usuários do Android
+      // ToastAndroid.show("O livro não existe no banco de dados da biblioteca!", ToastAndroid.SHORT);
+      Alert.alert("O livro não existe no banco de dados da biblioteca!");
+    } else if (transactionType === "issue") {
+      var isEligible = await this.checkStudentEligibilityForBookIssue(
+        studentId
+      );
 
-           Alert.alert("Livro entregue para o aluno!");
-        } else {
-          var { bookName, studentName } = this.state;
-          this.initiateBookReturn(bookId, studentId, bookName, studentName);
+      if (isEligible) {
+        var { bookName, studentName } = this.state;
+        this.initiateBookIssue(bookId, studentId, bookName, studentName);
+        // Apenas para usuários do Android
+        // ToastAndroid.show("Livro entregue para o aluno!", ToastAndroid.SHORT);
+        Alert.alert("Livro entregue para o aluno!");
+      }
+    } else {
+      var isEligible = await this.checkStudentEligibilityForBookReturn(
+        bookId,
+        studentId
+      );
 
+      if (isEligible) {
+        var { bookName, studentName } = this.state;
+        this.initiateBookReturn(bookId, studentId, bookName, studentName);
 
-          Alert.alert("Livro retornado à biblioteca!");
-        }
-      });
+        // Apenas para usuários do Android
+        // ToastAndroid.show("Livro retornado à biblioteca!", ToastAndroid.SHORT);
+        Alert.alert("Livro retornado à biblioteca!");
+      }
+    }
   };
-//Função para ler a transação das características do livro
-  getBookDetails = bookId => {
+
+  getBookDetails = (bookId) => {
     bookId = bookId.trim();
     db.collection("books")
       .where("book_id", "==", bookId)
       .get()
-      .then(snapshot => {
-        snapshot.docs.map(doc => {
+      .then((snapshot) => {
+        snapshot.docs.map((doc) => {
           this.setState({
-            bookName: doc.data().book_details.book_name
+            bookName: doc.data().book_details.book_name,
           });
         });
       });
   };
-//Função para ler a transação das características do aluno
-  getStudentDetails = studentId => {
+
+  getStudentDetails = (studentId) => {
     studentId = studentId.trim();
     db.collection("students")
       .where("student_id", "==", studentId)
       .get()
-      .then(snapshot => {
-        snapshot.docs.map(doc => {
+      .then((snapshot) => {
+        snapshot.docs.map((doc) => {
           this.setState({
-            studentName: doc.data().student_details.student_name
+            studentName: doc.data().student_details.student_name,
           });
         });
       });
   };
-// alterar a função que autoriza a permissão do registro do livro para o aluno
-// nessa função o aluno irá ter concedida a permissão para emitir um livro no id de sua carteirinha de estudante
+
+  checkBookAvailability = async (bookId) => {
+    const bookRef = await db
+      .collection("books")
+      .where("book_id", "==", bookId)
+      .get();
+
+    var transactionType = "";
+    if (bookRef.docs.length == 0) {
+      transactionType = false;
+    } else {
+      bookRef.docs.map((doc) => {
+        //se o livro estiver disponível, o tipo de transação será "issue" (entregue)
+        // caso contrário, será "return" (retornado)
+        transactionType = doc.data().is_book_available ? "issue" : "return";
+      });
+    }
+
+    return transactionType;
+  };
+
+  checkStudentEligibilityForBookIssue = async (studentId) => {
+    const studentRef = await db
+      .collection("students")
+      .where("student_id", "==", studentId)
+      .get();
+
+    var isStudentEligible = "";
+    if (studentRef.docs.length == 0) {
+      this.setState({
+        bookId: "",
+        studentId: "",
+      });
+      isStudentEligible = false;
+      Alert.alert("O id do aluno não existe no banco de dados da biblioteca!");
+    } else {
+      studentRef.docs.map((doc) => {
+        if (doc.data().number_of_books_issued < 5) {
+          isStudentEligible = true;
+        } else {
+          isStudentEligible = false;
+          Alert.alert("O aluno não pode retirar mais de 5 livros");
+          this.setState({
+            bookId: "",
+            studentId: "",
+          });
+        }
+      });
+    }
+
+    return isStudentEligible;
+  };
+
+  checkStudentEligibilityForBookReturn = async (bookId, studentId) => {
+    const transactionRef = await db
+      .collection("transactions")
+      .where("book_id", "==", bookId)
+      .limit(1)
+      .get();
+    var isStudentEligible = "";
+    transactionRef.docs.map((doc) => {
+      var lastBookTransaction = doc.data();
+      if (lastBookTransaction.student_id === studentId) {
+        isStudentEligible = true;
+      } else {
+        isStudentEligible = false;
+        Alert.alert("O livro não foi retirado por este aluno!");
+        this.setState({
+          bookId: "",
+          studentId: "",
+        });
+      }
+    });
+    return isStudentEligible;
+  };
 
   initiateBookIssue = async (bookId, studentId, bookName, studentName) => {
     //adicionar uma transação
     db.collection("transactions").add({
-      // alterar aqui
+      student_id: studentId,
+      student_name: studentName,
+      book_id: bookId,
+      book_name: bookName,
+      date: firebase.firestore.Timestamp.now().toDate(),
+      transaction_type: "issue",
     });
     //alterar status do livro
-    db.collection("books")
-      .doc(bookId)
-      .update({
-        // alterar aqui
-      });
+    db.collection("books").doc(bookId).update({
+      is_book_available: false,
+    });
     //alterar o número de livros retirados pelo aluno
     db.collection("students")
       .doc(studentId)
       .update({
-         // alterar aqui
+        number_of_books_issued: firebase.firestore.FieldValue.increment(1),
       });
 
-    // Atualizando o estado local
+    // atualizando estado local
     this.setState({
-       // alterar aqui
+      bookId: "",
+      studentId: "",
     });
   };
 
-  //função principal que renderiza as características na tela do celular
+  initiateBookReturn = async (bookId, studentId, bookName, studentName) => {
+    //adicionar uma transação
+    db.collection("transactions").add({
+      student_id: studentId,
+      student_name: studentName,
+      book_id: bookId,
+      book_name: bookName,
+      date: firebase.firestore.Timestamp.now().toDate(),
+      transaction_type: "return",
+    });
+    //alterar status do livro
+    db.collection("books").doc(bookId).update({
+      is_book_available: true,
+    });
+    //alterar o número de livros retirados pelo aluno
+    db.collection("students")
+      .doc(studentId)
+      .update({
+        number_of_books_issued: firebase.firestore.FieldValue.increment(-1),
+      });
+
+    // atualizando estado local
+    this.setState({
+      bookId: "",
+      studentId: "",
+    });
+  };
+
   render() {
     const { bookId, studentId, domState, scanned } = this.state;
     if (domState !== "normal") {
@@ -154,108 +276,90 @@ export default class TransactionScreen extends Component {
       );
     }
     return (
-        <ImageBackground source={bgImage} style={styles.bgImage}>
-          {/* visualização dos icones */}
-          <View style={styles.upperContainer}>
-            {/* primeiro icone */}
-            <Image source={appIcon} style={styles.appIcon} />
-            {/* segundo icone */}
-            <Image source={appName} style={styles.appName} />
-          </View>
-
-          <View style={styles.lowerContainer}>
-            <View style={styles.textinputContainer}>
-              {/* caixa de texto para conter as informações do livro e um botão para enviar essas informações ao banco de dados */}
-              <TextInput
-                style={styles.textinput}
-                placeholder={"Id do Livro"}
-                placeholderTextColor={"#FFFFFF"}
-                value={bookId}
-                onChangeText={text => this.setState({ bookId: text })}
-              />
-              {/* fim da primeira caixa de texto */}
-
-              {/* botão para ler o Id do Livro */}
-              <TouchableOpacity
-                style={styles.scanbutton}
-                onPress={() => this.getCameraPermissions("bookId")}
-              > 
-              {/* título do botão */}
-              <Text style={styles.scanbuttonText}>Digitalizar</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* caixa de texto para conter as informações do aluno e um botão para enviar essas informações para o banco de dados */}
-            <View style={[styles.textinputContainer, { marginTop: 25 }]}>
-              <TextInput
-                style={styles.textinput}
-                placeholder={"Id do Aluno"}
-                placeholderTextColor={"#FFFFFF"}
-                value={studentId}
-                onChangeText={text => this.setState({ studentId: text })}
-              />
-              {/* botão para ler o id do aluno */}
-              <TouchableOpacity
-                style={styles.scanbutton}
-                onPress={() => this.getCameraPermissions("studentId")}
-              >
-                 {/* título do botão */}
-                <Text style={styles.scanbuttonText}>Digitalizar</Text>
-              </TouchableOpacity>
-            </View>
-
-
-            {/* botão para enviar as informações para o banco de dados depois do preenchimento dos dados */}
+      <ImageBackground source={bgImage} style={styles.bgImage}>
+        <View style={styles.upperContainer}>
+          <Image source={appIcon} style={styles.appIcon} />
+          <Image source={appName} style={styles.appName} />
+        </View>
+        <View style={styles.lowerContainer}>
+          <View style={styles.textinputContainer}>
+            <TextInput
+              style={styles.textinput}
+              placeholder={"ID do Livro"}
+              placeholderTextColor={"#FFFFFF"}
+              value={bookId}
+              onChangeText={(text) => this.setState({ bookId: text })}
+            />
             <TouchableOpacity
-              style={[styles.button, { marginTop: 25 }]}
-              onPress={this.handleTransaction}
+              style={styles.scanbutton}
+              onPress={() => this.getCameraPermissions("bookId")}
             >
-              <Text style={styles.buttonText}>Enviar</Text>
+              <Text style={styles.scanbuttonText}>Digitalizar</Text>
             </TouchableOpacity>
           </View>
-        </ImageBackground>
-     
+          <View style={[styles.textinputContainer, { marginTop: 25 }]}>
+            <TextInput
+              style={styles.textinput}
+              placeholder={"ID do Aluno"}
+              placeholderTextColor={"#FFFFFF"}
+              value={studentId}
+              onChangeText={(text) => this.setState({ studentId: text })}
+            />
+            <TouchableOpacity
+              style={styles.scanbutton}
+              onPress={() => this.getCameraPermissions("studentId")}
+            >
+              <Text style={styles.scanbuttonText}>Digitalizar</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 25 }]}
+            onPress={this.handleTransaction}
+          >
+            <Text style={styles.buttonText}>Enviar</Text>
+          </TouchableOpacity>
+        </View>
+      </ImageBackground>
     );
   }
 }
-//constante para fazer os estilos do aplicativo
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF"
+    backgroundColor: "#FFFFFF",
   },
   bgImage: {
     flex: 1,
     resizeMode: "cover",
-    justifyContent: "center"
+    justifyContent: "center",
   },
   upperContainer: {
     flex: 0.5,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   appIcon: {
     width: 200,
     height: 200,
     resizeMode: "contain",
-    marginTop: 80
+    marginTop: 80,
   },
   appName: {
-    width: 200,
+    width: 80,
     height: 80,
-    resizeMode: "contain"
+    resizeMode: "contain",
   },
   lowerContainer: {
     flex: 0.5,
-    alignItems: "center"
+    alignItems: "center",
   },
   textinputContainer: {
     borderWidth: 2,
     borderRadius: 10,
     flexDirection: "row",
     backgroundColor: "#9DFD24",
-    borderColor: "#FFFFFF"
+    borderColor: "#FFFFFF",
   },
   textinput: {
     width: "57%",
@@ -266,8 +370,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     fontSize: 18,
     backgroundColor: "#5653D4",
-    
-    color: "#FFFFFF"
+
+    color: "#FFFFFF",
   },
   scanbutton: {
     width: 100,
@@ -276,10 +380,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 10,
     borderBottomRightRadius: 10,
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
   },
   scanbuttonText: {
-    fontSize: 19,
+    fontSize: 24,
     color: "#0A0101",
   },
   button: {
@@ -288,10 +392,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#F48D20",
-    borderRadius: 15
+    borderRadius: 15,
   },
   buttonText: {
     fontSize: 24,
     color: "#FFFFFF",
-  }
+  },
 });

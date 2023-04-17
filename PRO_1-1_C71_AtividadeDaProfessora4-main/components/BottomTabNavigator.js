@@ -30,7 +30,7 @@ export default class BottomTabNavigator extends Component {
                   name={iconName}
                   size={size}
                   color={color}
-                  size={size}
+    
                 />
               );
             }
