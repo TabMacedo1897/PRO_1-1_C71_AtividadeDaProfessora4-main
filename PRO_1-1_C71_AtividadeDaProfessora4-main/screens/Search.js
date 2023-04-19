@@ -1,5 +1,12 @@
 import React, { Component } from "react";
-import {View,StyleSheet,TextInput,TouchableOpacity,Text,FlatList} from "react-native";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  FlatList
+} from "react-native";
 import { Avatar, ListItem, Icon } from "react-native-elements";
 import db from "../config";
 
@@ -8,7 +15,8 @@ export default class SearchScreen extends Component {
     super(props);
     this.state = {
       allTransactions: [],
-      // preencher aqui
+      lastVisibleTransaction: null,
+      searchText: ""
     };
   }
   componentDidMount = async () => {
@@ -17,19 +25,63 @@ export default class SearchScreen extends Component {
 
   getTransactions = () => {
     db.collection("transactions")
+      .limit(10)
       .get()
       .then(snapshot => {
         snapshot.docs.map(doc => {
           this.setState({
             allTransactions: [...this.state.allTransactions, doc.data()],
+            lastVisibleTransaction: doc
           });
         });
       });
   };
 
-  
+  handleSearch = async text => {
+    var enteredText = text.toUpperCase().split("");
+    text = text.toUpperCase();
+    this.setState({
+      allTransactions: []
+    });
+    if (!text) {
+      this.getTransactions();
+    }
 
+    if (enteredText[0] === "B") {
+      db.collection("transactions")
+        .where("book_id", "==", text)
+        .get()
+        .then(snapshot => {
+          snapshot.docs.map(doc => {
+            this.setState({
+              allTransactions: [...this.state.allTransactions, doc.data()],
+              lastVisibleTransaction: doc
+            });
+          });
+        });
+    } else if (enteredText[0] === "S") {
+      db.collection("transactions")
+        .where("student_id", "==", text)
+        .get()
+        .then(snapshot => {
+          snapshot.docs.map(doc => {
+            this.setState({
+              allTransactions: [...this.state.allTransactions, doc.data()],
+              lastVisibleTransaction: doc
+            });
+          });
+        });
+    }
+  };
+
+  fetchMoreTransactions = async text => {
+    var enteredText = text.toUpperCase().split("");
+    text = text.toUpperCase();
+
+    // completar a função fetchMoreTransactions
   
+  };
+
   renderItem = ({ item, i }) => {
     var date = item.date
       .toDate()
@@ -86,35 +138,7 @@ export default class SearchScreen extends Component {
       </View>
     );
   };
-//complete a função handleSearch()
-handleSearch = async text => {
-  var enteredText = text.toUpperCase().split("");
-  text = text.toUpperCase();
-  this.setState({
-   //completar a função aqui
-  });
-  if (!text) {
-    this.getTransactions();
-  }
 
-  if (enteredText[0] === "B") {
-   //completar a função
-  } else if (enteredText[0] === "S") {
-    db.collection("transactions")
-      .where("student_id", "==", text)
-      .get()
-      .then(snapshot => {
-        snapshot.docs.map(doc => {
-          this.setState({
-            allTransactions: [...this.state.allTransactions, doc.data()],
-            lastVisibleTransaction: doc
-          });
-        });
-      });
-  }
-};
-// termina aqui a atividade do aluno
-  
   render() {
     const { searchText, allTransactions } = this.state;
     return (
@@ -127,11 +151,9 @@ handleSearch = async text => {
               placeholder={"Escreva aqui"}
               placeholderTextColor={"#FFFFFF"}
             />
-            {/* atividade do aluno */}
             <TouchableOpacity
               style={styles.scanbutton}
-              // atividade do aluno 
-              
+              onPress={() => this.handleSearch(searchText)}
             >
               <Text style={styles.scanbuttonText}>Pesquisar</Text>
             </TouchableOpacity>
@@ -142,6 +164,8 @@ handleSearch = async text => {
             data={allTransactions}
             renderItem={this.renderItem}
             keyExtractor={(item, index) => index.toString()}
+            onEndReached={() => this.fetchMoreTransactions(searchText)}
+            onEndReachedThreshold={0.7}
           />
         </View>
       </View>
@@ -175,6 +199,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     fontSize: 18,
     backgroundColor: "#5653D4",
+    fontFamily: "Rajdhani_600SemiBold",
     color: "#FFFFFF"
   },
   scanbutton: {
@@ -189,6 +214,7 @@ const styles = StyleSheet.create({
   scanbuttonText: {
     fontSize: 24,
     color: "#0A0101",
+    fontFamily: "Rajdhani_600SemiBold"
   },
   lowerContainer: {
     flex: 0.8,
@@ -196,9 +222,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
+    fontFamily: "Rajdhani_600SemiBold"
   },
   subtitle: {
     fontSize: 16,
+    fontFamily: "Rajdhani_600SemiBold"
   },
   lowerLeftContaiiner: {
     alignSelf: "flex-end",
@@ -212,9 +240,11 @@ const styles = StyleSheet.create({
   transactionText: {
     fontSize: 20,
 
+    fontFamily: "Rajdhani_600SemiBold"
   },
   date: {
     fontSize: 12,
+    fontFamily: "Rajdhani_600SemiBold",
     paddingTop: 5
   }
 });
